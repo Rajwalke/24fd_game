@@ -137,13 +137,12 @@ const LoginPage = () => {
                                     >
                                         Start the Game <IoGameController className="inline-block text-xl" />
                                     </button>
-                                    <button 
+                                    <Link to="/leaderboard"
         
-                                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                        className="w-full bg-gradient-to-r text-xl block text-center from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                     >
-                                    <Link to="/leaderboard">  LeadBoard <MdLeaderboard className="text-xl inline-block" /></Link>      
+                                      LeadBoard <MdLeaderboard className="inline-block" /></Link>      
                                     
-                                    </button>
                                 </div>
                             </div>
                         </form>
