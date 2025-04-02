@@ -18,10 +18,12 @@ import { addAlluser } from './utils/userSlice';
 
 const BalloonBurstGame = () => {
   // Game state
+  const [isBombBlast,setisBombBlast]=useState(false);
   const [score, setScore] = useState(0);
   const [tierStatusText, setTierStatusText] = useState('🌱 Beginner Blower');
   const [balloons, setBalloons] = useState([]);
   const [gameOver, setGameOver] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(60); // 2 minutes in seconds
   const dispatch = useDispatch();
   const fullName = useSelector((store) => store?.userData?.userName);
   const id = useSelector((store) => store?.userData?.id);
@@ -32,8 +34,10 @@ const BalloonBurstGame = () => {
   const [canShoot, setCanShoot] = useState(true);
   const [isSpawningBalloons, setIsSpawningBalloons] = useState(true);
   const [trajectoryPoints, setTrajectoryPoints] = useState([]);
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const gameAreaRef = useRef(null);
   const bowRef = useRef(null);
+  const [blastEffects, setBlastEffects] = useState([]);
 
   // Game configuration
   const tiers = [
@@ -52,14 +56,21 @@ const BalloonBurstGame = () => {
     balloon5, 
   ];
 
-  // Custom CSS for fly animation with moderate speed
+  // Format time function (convert seconds to MM:SS format)
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  };
+
+  // Custom CSS for fly animation with increased speed
   const flyAnimation = `
     @keyframes fly {
       0% { transform: translateX(var(--fly-start-x)) translateY(0); }
       100% { transform: translateX(var(--fly-end-x)) translateY(-100vh); }
     }
     .animate-fly {
-      animation: fly 6s linear forwards;
+      animation: fly 3s linear forwards; /* Reduced from 6s to 4.5s for faster movement */
     }
     
     @keyframes arrow-move {
@@ -67,9 +78,47 @@ const BalloonBurstGame = () => {
       100% { transform: translate(var(--arrow-dx), var(--arrow-dy)) rotate(var(--arrow-rotation)); }
     }
     .animate-arrow {
-      animation: arrow-move 1.2s linear forwards;
+      animation: arrow-move 3s linear forwards; /* Increased from 1.5s to 3s for longer travel */
+      will-change: transform; /* Performance optimization */
+    }
+    
+    @keyframes blast {
+      0% { transform: scale(0.1); opacity: 0; }
+      25% { opacity: 1; }
+      100% { transform: scale(6); opacity: 0; }
+    }
+    .animate-blast {
+      animation: blast 0.7s ease-out forwards;
+      will-change: transform, opacity;
     }
   `;
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Determine balloon size based on screen size
+  const getBalloonSize = () => {
+    if (windowSize.width < 640) return 60; // Mobile
+    if (windowSize.width < 1024) return 80; // Tablet
+    return 100; // Desktop and larger
+  };
+
+  // Determine bow size based on screen size
+  const getBowSize = () => {
+    if (windowSize.width < 640) return 'w-24'; // Mobile
+    if (windowSize.width < 1024) return 'w-32'; // Tablet
+    return 'w-48'; // Desktop and larger
+  };
 
   // Create a new balloon
   const createBalloon = useCallback(() => {
@@ -80,7 +129,7 @@ const BalloonBurstGame = () => {
     return {
       id: Date.now() + Math.random(), // Ensure unique IDs even when creating multiple balloons at once
       src: randomImage,
-      size: 100, // Increased initial size
+      size: getBalloonSize(), // Dynamic size based on screen size
       clicks: 0,
       isFlying: false,
       startX: `${Math.random() * 90}%`, // Random horizontal start position
@@ -88,7 +137,7 @@ const BalloonBurstGame = () => {
       isBomb: isBomb,
       element: null, // Will store reference to DOM element
     };
-  }, [balloonImages]);
+  }, [balloonImages, windowSize]);
 
   const navigate = useNavigate();
   
@@ -108,6 +157,41 @@ const BalloonBurstGame = () => {
     }, 4000);
   };
 
+  // Create blast effect function
+  const createBlastEffect = (x, y) => {
+    const newBlast = {
+      id: Date.now(),
+      x: x,
+      y: y,
+      active: true
+    };
+    
+    setBlastEffects(prev => [...prev, newBlast]);
+    
+    // Remove blast effect after animation completes
+    setTimeout(() => {
+      setBlastEffects(prev => prev.filter(blast => blast.id !== newBlast.id));
+    }, 700); // Matches animation duration
+  };
+
+  // Game timer effect
+  useEffect(() => {
+    if (gameOver) return;
+    
+    const timer = setInterval(() => {
+      setTimeLeft(prevTime => {
+        if (prevTime <= 1) {
+          clearInterval(timer);
+          endGame();
+          return 0;
+        }
+        return prevTime - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [gameOver]);
+
   // Calculate trajectory points exactly matching the arrow's path
   const calculateTrajectoryPoints = useCallback((bowCenterX, bowCenterY, angle, maxDistance = 500) => {
     const points = [];
@@ -117,7 +201,7 @@ const BalloonBurstGame = () => {
     const dy = Math.sin(angleRad);
     
     // Get the game area position for relative coordinates
-    const gameAreaRect = gameAreaRef.current.getBoundingClientRect();
+    const gameAreaRect = gameAreaRef.current?.getBoundingClientRect() || { left: 0, top: 0 };
     
     // Calculate the exact starting point of the arrow relative to game area
     const arrowStartX = bowCenterX - gameAreaRect.left;
@@ -134,21 +218,27 @@ const BalloonBurstGame = () => {
     return points;
   }, []);
 
-  // Handle mouse movement to aim the bow
+  // Handle mouse/touch movement to aim the bow
   useEffect(() => {
     if (gameOver) return;
     
     const handleMove = (e) => {
       if (!bowRef.current || !gameAreaRef.current) return;
       
+      // Get client coordinates for both mouse and touch events
+      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : null);
+      const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : null);
+      
+      if (clientX === null || clientY === null) return;
+      
       const bowRect = bowRef.current.getBoundingClientRect();
       const bowCenterX = bowRect.left + bowRect.width / 2;
       const bowCenterY = bowRect.top + bowRect.height / 2;
       
-      // Calculate angle between mouse and bow center
+      // Calculate angle between pointer and bow center
       const angle = Math.atan2(
-        e.clientY - bowCenterY,
-        e.clientX - bowCenterX
+        clientY - bowCenterY,
+        clientX - bowCenterX
       ) * (180 / Math.PI);
       
       // Constrain rotation to upper half only (-180 to 0 degrees)
@@ -173,8 +263,16 @@ const BalloonBurstGame = () => {
       setTrajectoryPoints(newTrajectoryPoints);
     };
     
+    // Mouse events
     window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
+    
+    // Touch events for mobile
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('touchmove', handleMove);
+    };
   }, [gameOver, calculateTrajectoryPoints]);
 
   // Shoot arrow function
@@ -189,17 +287,20 @@ const BalloonBurstGame = () => {
     // Get game area for relative positioning
     const gameAreaRect = gameAreaRef.current.getBoundingClientRect();
     
-    // Calculate the exact start position of the arrow
+    // Calculate the exact start position of the arrow relative to game area
     const arrowStartX = bowCenterX - gameAreaRect.left;
     const arrowStartY = bowCenterY - gameAreaRect.top;
     
     // Calculate arrow path based on bow rotation
     const angleRad = bowRotation * (Math.PI / 180);
-    const arrowSpeed = 1200;
-    const dx = Math.cos(angleRad) * arrowSpeed;
-    const dy = Math.sin(angleRad) * arrowSpeed;
     
-    // Create new arrow with coordinates matching the trajectory
+    // Set a fixed distance for arrow travel - large enough to cross entire screen on any display size
+    // Calculate based on screen dimensions to ensure arrows travel fully across the screen
+    const arrowDistance = Math.max(windowSize.width * 2, windowSize.height * 2);
+    const dx = Math.cos(angleRad) * arrowDistance;
+    const dy = Math.sin(angleRad) * arrowDistance;
+    
+    // Create new arrow with coordinates
     const newArrow = {
       id: Date.now(),
       x: arrowStartX,
@@ -226,6 +327,7 @@ const BalloonBurstGame = () => {
       const currentBalloons = [...balloons];
       let scoreIncrease = 0;
       let hitBomb = false;
+      let bombCollisionPosition = null;
       
       // Get all balloon elements
       const balloonElements = document.querySelectorAll('.balloon-element');
@@ -261,6 +363,21 @@ const BalloonBurstGame = () => {
             // Check if it hit a bomb
             if (balloon.isBomb) {
               hitBomb = true;
+              // Get game area for relative positioning
+              const gameAreaRect = gameAreaRef.current.getBoundingClientRect();
+              
+              // Store collision position for blast effect
+              bombCollisionPosition = {
+                x: balloonRect.left + balloonRect.width / 2 - gameAreaRect.left,
+                y: balloonRect.top + balloonRect.height / 2 - gameAreaRect.top
+              };
+              
+              // Remove the bomb balloon immediately
+              const index = currentBalloons.findIndex(b => b.id === balloon.id);
+              if (index !== -1) {
+                currentBalloons.splice(index, 1);
+              }
+              
             } else {
               // Remove balloon
               const index = currentBalloons.findIndex(b => b.id === balloon.id);
@@ -274,9 +391,14 @@ const BalloonBurstGame = () => {
       });
       
       // Update game state if collisions occurred
-      if (hitBomb) {
-        endGame();
-        return;
+      if (hitBomb && bombCollisionPosition) {
+        // Create blast effect at the bomb's position
+        createBlastEffect(bombCollisionPosition.x, bombCollisionPosition.y);
+        setisBombBlast(true);
+        // Short delay before ending the game to show the blast effect
+        setTimeout(() => {
+          endGame();
+        }, 500);
       }
       
       if (scoreIncrease > 0) {
@@ -351,7 +473,7 @@ const BalloonBurstGame = () => {
     return () => clearInterval(timer);
   }, [balloons]);
 
-  // Cleanup old arrows
+  // Cleanup old arrows that go outside the screen boundaries
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       setArrows(prev => {
@@ -359,15 +481,47 @@ const BalloonBurstGame = () => {
         return prev.filter(arrow => {
           const element = document.getElementById(`arrow-${arrow.id}`);
           if (!element) return false;
+          
           const rect = element.getBoundingClientRect();
-          return rect.top > 0 && rect.bottom < window.innerHeight &&
-                 rect.left > 0 && rect.right < window.innerWidth;
+          // Use much larger boundaries to ensure arrows don't get cleaned up too early
+          return rect.top > -1000 && rect.bottom < window.innerHeight + 1000 &&
+                 rect.left > -1000 && rect.right < window.innerWidth + 1000;
         });
       });
     }, 1000);
     
     return () => clearInterval(cleanupInterval);
   }, []);
+
+  // Get appropriate arrow size based on screen size
+  const getArrowSize = () => {
+    if (windowSize.width < 640) return { width: '40px', height: '20px' }; // Mobile
+    if (windowSize.width < 1024) return { width: '60px', height: '30px' }; // Tablet
+    return { width: '80px', height: '40px' }; // Desktop
+  };
+
+  // Get appropriate trajectory dot size based on screen size
+  const getTrajectoryDotSize = (index) => {
+    const baseSize = windowSize.width < 640 ? 4 : windowSize.width < 1024 ? 6 : 8;
+    return index % 2 === 0 ? `${baseSize}px` : `${baseSize - 2}px`;
+  };
+
+  // Get appropriate font sizes for UI elements based on screen size
+  const getFontSize = (type) => {
+    if (type === 'header') {
+      return windowSize.width < 640 ? 'text-lg' : windowSize.width < 1024 ? 'text-xl' : 'text-2xl';
+    } else if (type === 'instruction') {
+      return windowSize.width < 640 ? 'text-base' : windowSize.width < 1024 ? 'text-lg' : 'text-2xl';
+    }
+    return 'text-base';
+  };
+
+  // Get blast effect size based on screen size
+  const getBlastSize = () => {
+    if (windowSize.width < 640) return { size: '80px' }; // Mobile
+    if (windowSize.width < 1024) return { size: '100px' }; // Tablet
+    return { size: '120px' }; // Desktop
+  };
 
   return (
     <>
@@ -377,18 +531,25 @@ const BalloonBurstGame = () => {
       <div 
         ref={gameAreaRef}
         style={{ backgroundImage: `url(${backgroundImg})` }} 
-        className="bg-cover bg-center fixed inset-0"
+        className="bg-cover bg-center fixed inset-0 overflow-hidden"
       >
-        {/* Score and Tier Display */}
-        <div className="absolute space-y-1 top-5 right-5 text-black z-10">
-          <div className="text-2xl font-bold" style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
+        {/* Score, Tier and Timer Display */}
+        <div className={`absolute space-y-1 top-2 md:top-5 right-2 md:right-5 text-black z-10 ${getFontSize('header')}`}>
+          <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
             Welcome, {fullName}
           </div>
-          <div className="text-2xl font-bold" style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
+          <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
             Score: {score}
           </div>
-          <div className="text-2xl font-bold" style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
+          <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
             {tierStatusText}
+          </div>
+          {/* Timer Display */}
+          <div className={`font-bold`} style={{ 
+            textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
+            color: timeLeft <= 30 ? '#ff0000' : '#000000' // Red color for last 30 seconds
+          }}>
+            Time: {formatTime(timeLeft)}
           </div>
         </div>
 
@@ -413,14 +574,34 @@ const BalloonBurstGame = () => {
             />
           ))}
           
+          {/* Blast Effects */}
+          {blastEffects.map(blast => {
+            const blastSize = getBlastSize();
+            return (
+              <div 
+                key={`blast-${blast.id}`}
+                className="absolute rounded-full animate-blast"
+                style={{
+                  width: blastSize.size,
+                  height: blastSize.size,
+                  left: `${blast.x - parseInt(blastSize.size) / 2}px`,
+                  top: `${blast.y - parseInt(blastSize.size) / 2}px`,
+                  background: 'radial-gradient(circle, rgba(255,165,0,0.8) 0%, rgba(255,69,0,0.8) 40%, rgba(255,0,0,0.8) 60%, rgba(139,0,0,0.7) 80%, rgba(0,0,0,0) 100%)',
+                  boxShadow: '0 0 20px 10px rgba(255, 165, 0, 0.8)',
+                  zIndex: 30
+                }}
+              />
+            );
+          })}
+          
           {/* Trajectory Line */}
           {canShoot && trajectoryPoints.map((point, index) => (
             <div
               key={`trajectory-${index}`}
               className="absolute rounded-full bg-black z-50"
               style={{
-                width: index % 2 === 0 ? '8px' : '6px',  // Alternating sizes for visual interest
-                height: index % 2 === 0 ? '8px' : '6px',
+                width: getTrajectoryDotSize(index),
+                height: getTrajectoryDotSize(index),
                 left: `${point.x}px`,
                 top: `${point.y}px`,
                 zIndex: 15
@@ -429,51 +610,59 @@ const BalloonBurstGame = () => {
           ))}
           
           {/* Flying Arrows */}
-          {arrows.map(arrow => (
-            <img 
-              id={`arrow-${arrow.id}`}
-              key={arrow.id}
-              src={ArrowImg}
-              alt="Arrow"
-              className="absolute animate-arrow"
-              style={{
-                width: '80px',  // Increased arrow size
-                height: '40px', // Increased arrow size
-                left: `${arrow.x}px`,
-                top: `${arrow.y}px`,
-                '--arrow-rotation': `${arrow.rotation}deg`,
-                '--arrow-dx': `${arrow.dx}px`,
-                '--arrow-dy': `${arrow.dy}px`,
-                transform: `rotate(${arrow.rotation}deg)`,
-                zIndex: 20
-              }}
-            />
-          ))}
+          {arrows.map(arrow => {
+            const arrowSize = getArrowSize();
+            return (
+              <img 
+                id={`arrow-${arrow.id}`}
+                key={arrow.id}
+                src={ArrowImg}
+                alt="Arrow"
+                className="absolute animate-arrow"
+                style={{
+                  width: arrowSize.width,
+                  height: arrowSize.height,
+                  left: `${arrow.x}px`,
+                  top: `${arrow.y}px`,
+                  '--arrow-rotation': `${arrow.rotation}deg`,
+                  '--arrow-dx': `${arrow.dx}px`,
+                  '--arrow-dy': `${arrow.dy}px`,
+                  transform: `rotate(${arrow.rotation}deg)`,
+                  transformOrigin: 'center center',
+                  zIndex: 20
+                }}
+              />
+            );
+          })}
         </div>
 
         {/* Game Over Message */}
-        {gameOver && <GameIsOver score={score}/>}
+        {gameOver && <GameIsOver score={score} bomb={isBombBlast} />}
 
         {/* Instructions */}
-        <div className="absolute bottom-10 left-10 text-center text-[rgb(45,15,18)] text-2xl font-bold z-10" 
+        <div className={`absolute bottom-4 md:bottom-10 left-2 md:left-10 text-center text-[rgb(45,15,18)] font-bold z-10 ${getFontSize('instruction')}`} 
              style={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.5)' }}>
           <p>Aim and click to shoot arrows 🏹</p>
           <p className="text-red-600">Hit balloons but avoid bombs! 💣</p>
+          {!gameOver && <p className="text-red-600">Time Remaining: {formatTime(timeLeft)}</p>}
         </div>
         
-        {/* Bow and Arrow */}
+        {/* Centered Bow and Arrow */}
         <div 
-          className='absolute bottom-0 right-[800px]'
+          className="absolute transform -translate-x-1/2 flex justify-center items-center"
           style={{ 
+            bottom: '5%',
+            left: '50%',
             transformOrigin: 'bottom center',
             cursor: canShoot ? 'pointer' : 'default',
             zIndex: 30
           }}
           onClick={shootArrow}
+          onTouchStart={canShoot ? shootArrow : undefined}
         >
           <img 
             ref={bowRef}
-            className='w-48' 
+            className={getBowSize()}
             src={BowArrowImg}
             alt="Bow"
             style={{ 

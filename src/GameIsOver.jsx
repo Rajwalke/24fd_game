@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 
-const GameIsOver = ({ score }) => {
+const GameIsOver = ({ score,bomb }) => {
   const [animationClass, setAnimationClass] = useState('scale-0');
+
   useEffect(() => {
     // Trigger entrance animation
     setTimeout(() => {
@@ -38,9 +39,8 @@ const GameIsOver = ({ score }) => {
           </div>
           
           {/* Message */}
-          <p className="text-xl mb-8 text-gray-700">
-            You clicked on a bomb! The game will restart shortly...
-          </p>
+          <p className='text-xl font-bold my-2 '>{bomb == true ? "You clicked on a bomb! The game will restart shortly..." : "Time up"}</p>
+          
           
           {/* Progress bar */}
           <div className="w-full bg-gray-200 rounded-full h-2 mb-6 overflow-hidden">
