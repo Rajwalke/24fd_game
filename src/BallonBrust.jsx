@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 // Import all balloon images
-import balloon1 from './Graphics/Symbol 100001.png';
-import balloon2 from './Graphics/Symbol 100002.png';
-import balloon3 from './Graphics/Symbol 100003.png';
-import balloon4 from './Graphics/Symbol 100004.png';
-import balloon5 from './Graphics/Symbol 100005.png';
+import balloon1 from './Graphics/germ11.png';
+import balloon2 from './Graphics/germ14.png';
+import balloon3 from './Graphics/germ15.png';
+import balloon4 from './Graphics/germ13.png';
+import balloon5 from './Graphics/germ12.png';
 
 import BowArrowImg from "./Graphics/BowArrowImg.png";
 import ArrowImg from './Graphics/Arrow.png';
-import backgroundImg from "./Graphics/Symbol 3 copy.png";
-import BombImg from "./Graphics/Bomb-Img.png";
+import backgroundImg from "./Graphics/Symbol 3 copy.jpg";
+import BombImg from "./Graphics/heart.png";
 import GameIsOver from './GameIsOver';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -18,15 +18,18 @@ import { addAlluser } from './utils/userSlice';
 
 const BalloonBurstGame = () => {
   // Game state
-  const [isBombBlast,setisBombBlast]=useState(false);
+  const [isBombBlast, setIsBombBlast] = useState(false);
   const [score, setScore] = useState(0);
   const [tierStatusText, setTierStatusText] = useState('🌱 Beginner Blower');
   const [balloons, setBalloons] = useState([]);
   const [gameOver, setGameOver] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(60); // 2 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(60); // 1 minute in seconds
   const dispatch = useDispatch();
   const fullName = useSelector((store) => store?.userData?.userName);
   const id = useSelector((store) => store?.userData?.id);
+  
+  // Mouse position state
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
   // Bow and Arrow state
   const [bowRotation, setBowRotation] = useState(-45); // Default upward direction
@@ -38,6 +41,9 @@ const BalloonBurstGame = () => {
   const gameAreaRef = useRef(null);
   const bowRef = useRef(null);
   const [blastEffects, setBlastEffects] = useState([]);
+  const timeoutRefs = useRef({ single: null, burst: null });
+  // Track which balloons have been hit to prevent duplicate collisions
+  const hitBalloonsRef = useRef(new Set());
 
   // Game configuration
   const tiers = [
@@ -66,11 +72,11 @@ const BalloonBurstGame = () => {
   // Custom CSS for fly animation with increased speed
   const flyAnimation = `
     @keyframes fly {
-      0% { transform: translateX(var(--fly-start-x)) translateY(0); }
-      100% { transform: translateX(var(--fly-end-x)) translateY(-100vh); }
+      0% { transform: translateX(var(--start-x)) translateY(0); }
+      100% { transform: translateX(var(--end-x)) translateY(-100vh); }
     }
     .animate-fly {
-      animation: fly 3s linear forwards; /* Reduced from 6s to 4.5s for faster movement */
+      animation: fly 3s linear forwards;
     }
     
     @keyframes arrow-move {
@@ -78,8 +84,8 @@ const BalloonBurstGame = () => {
       100% { transform: translate(var(--arrow-dx), var(--arrow-dy)) rotate(var(--arrow-rotation)); }
     }
     .animate-arrow {
-      animation: arrow-move 3s linear forwards; /* Increased from 1.5s to 3s for longer travel */
-      will-change: transform; /* Performance optimization */
+      animation: arrow-move 1.5s linear forwards;
+      will-change: transform;
     }
     
     @keyframes blast {
@@ -108,16 +114,16 @@ const BalloonBurstGame = () => {
 
   // Determine balloon size based on screen size
   const getBalloonSize = () => {
-    if (windowSize.width < 640) return 60; // Mobile
-    if (windowSize.width < 1024) return 80; // Tablet
-    return 100; // Desktop and larger
+    if (windowSize.width < 640) return 75; // Mobile
+    if (windowSize.width < 1024) return 95; // Tablet
+    return 120; // Desktop and larger
   };
 
   // Determine bow size based on screen size
   const getBowSize = () => {
     if (windowSize.width < 640) return 'w-24'; // Mobile
     if (windowSize.width < 1024) return 'w-32'; // Tablet
-    return 'w-48'; // Desktop and larger
+    return 'w-60'; // Desktop and larger
   };
 
   // Create a new balloon
@@ -126,26 +132,37 @@ const BalloonBurstGame = () => {
     const isBomb = Math.random() < 0.1;
     const randomImage = isBomb ? BombImg : balloonImages[Math.floor(Math.random() * balloonImages.length)];
     
+    const startX = Math.random() * 90;
+    const endX = Math.random() * 180 - 40;
+    
     return {
       id: Date.now() + Math.random(), // Ensure unique IDs even when creating multiple balloons at once
       src: randomImage,
       size: getBalloonSize(), // Dynamic size based on screen size
       clicks: 0,
       isFlying: false,
-      startX: `${Math.random() * 90}%`, // Random horizontal start position
-      endX: `${Math.random() * 180 - 40}%`, // Random horizontal end position
+      startX: `${startX}%`, // Random horizontal start position
+      endX: `${endX}%`, // Random horizontal end position
       isBomb: isBomb,
-      element: null, // Will store reference to DOM element
+      // Add hitbox data for more accurate collision detection
+      hitbox: {
+        width: getBalloonSize(),
+        height: getBalloonSize()
+      }
     };
-  }, [balloonImages, windowSize]);
+  }, [balloonImages, getBalloonSize]);
 
   const navigate = useNavigate();
   
   // End game function
-  const endGame = () => {
+  const endGame = useCallback(() => {
     setIsSpawningBalloons(false);
     dispatch(addUserScore(score));
     setGameOver(true);
+    
+    // Clear all timeouts
+    if (timeoutRefs.current.single) clearTimeout(timeoutRefs.current.single);
+    if (timeoutRefs.current.burst) clearTimeout(timeoutRefs.current.burst);
     
     setTimeout(() => {
       dispatch(addAlluser({
@@ -155,7 +172,7 @@ const BalloonBurstGame = () => {
       }));
       navigate("/");
     }, 4000);
-  };
+  }, [dispatch, fullName, id, navigate, score]);
 
   // Create blast effect function
   const createBlastEffect = (x, y) => {
@@ -190,7 +207,7 @@ const BalloonBurstGame = () => {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [gameOver]);
+  }, [gameOver, endGame]);
 
   // Calculate trajectory points exactly matching the arrow's path
   const calculateTrajectoryPoints = useCallback((bowCenterX, bowCenterY, angle, maxDistance = 500) => {
@@ -218,24 +235,26 @@ const BalloonBurstGame = () => {
     return points;
   }, []);
 
-  // Handle mouse/touch movement to aim the bow
+  // Handle mouse/touch movement to aim the bow - IMPROVED to work anywhere on screen
   useEffect(() => {
-    if (gameOver) return;
+    if (gameOver || !bowRef.current || !gameAreaRef.current) return;
     
     const handleMove = (e) => {
-      if (!bowRef.current || !gameAreaRef.current) return;
-      
       // Get client coordinates for both mouse and touch events
       const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : null);
       const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : null);
       
       if (clientX === null || clientY === null) return;
       
+      // Update mouse position state
+      setMousePosition({ x: clientX, y: clientY });
+      
+      // Calculate bow position
       const bowRect = bowRef.current.getBoundingClientRect();
       const bowCenterX = bowRect.left + bowRect.width / 2;
       const bowCenterY = bowRect.top + bowRect.height / 2;
       
-      // Calculate angle between pointer and bow center
+      // Calculate angle between mouse and bow center
       const angle = Math.atan2(
         clientY - bowCenterY,
         clientX - bowCenterX
@@ -253,7 +272,7 @@ const BalloonBurstGame = () => {
       
       setBowRotation(constrainedAngle);
       
-      // Calculate trajectory points starting from the exact bow position
+      // Calculate trajectory points from bow position
       const newTrajectoryPoints = calculateTrajectoryPoints(
         bowCenterX, 
         bowCenterY, 
@@ -263,11 +282,9 @@ const BalloonBurstGame = () => {
       setTrajectoryPoints(newTrajectoryPoints);
     };
     
-    // Mouse events
+    // Always track mouse movement across the entire window
     window.addEventListener('mousemove', handleMove);
-    
-    // Touch events for mobile
-    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchmove', handleMove);
     
     return () => {
       window.removeEventListener('mousemove', handleMove);
@@ -275,9 +292,9 @@ const BalloonBurstGame = () => {
     };
   }, [gameOver, calculateTrajectoryPoints]);
 
-  // Shoot arrow function
-  const shootArrow = () => {
-    if (!canShoot || gameOver || !trajectoryPoints.length) return;
+  // Shoot arrow function - now can be triggered by clicking anywhere on screen
+  const shootArrow = useCallback(() => {
+    if (!canShoot || gameOver || !trajectoryPoints.length || !bowRef.current || !gameAreaRef.current) return;
     
     // Get bow position
     const bowRect = bowRef.current.getBoundingClientRect();
@@ -308,7 +325,12 @@ const BalloonBurstGame = () => {
       rotation: bowRotation,
       dx: dx,
       dy: dy,
-      active: true
+      active: true,
+      // Add hitbox data for more accurate collision detection
+      hitbox: {
+        width: 10, // Arrow tip width for collision
+        height: 10  // Arrow tip height for collision
+      }
     };
     
     setArrows(prev => [...prev, newArrow]);
@@ -316,162 +338,268 @@ const BalloonBurstGame = () => {
     // Cooldown for shooting
     setCanShoot(false);
     setTimeout(() => setCanShoot(true), 500);
-  };
+  }, [bowRotation, canShoot, gameOver, trajectoryPoints.length, windowSize]);
 
-  // Check for arrow collisions with balloons
+  // Handle click anywhere on screen to shoot
   useEffect(() => {
-    if (gameOver || arrows.length === 0 || balloons.length === 0) return;
+    if (gameOver) return;
+    
+    const handleClick = () => {
+      shootArrow();
+    };
+    
+    // Add click event to game area
+    const gameArea = gameAreaRef.current;
+    if (gameArea) {
+      gameArea.addEventListener('click', handleClick);
+      gameArea.addEventListener('touchend', handleClick);
+    }
+    
+    return () => {
+      if (gameArea) {
+        gameArea.removeEventListener('click', handleClick);
+        gameArea.removeEventListener('touchend', handleClick);
+      }
+    };
+  }, [gameOver, shootArrow]);
+
+  // IMPROVED collision detection between arrows and balloons
+  useEffect(() => {
+    if (gameOver) return;
     
     const checkCollisions = () => {
-      const activeArrows = [...arrows];
+      if (arrows.length === 0 || balloons.length === 0) return;
+      
+      // Get game area for relative positioning
+      const gameAreaRect = gameAreaRef.current?.getBoundingClientRect();
+      if (!gameAreaRect) return;
+      
+      // Create a copy of the current state
+      const currentArrows = [...arrows];
       const currentBalloons = [...balloons];
       let scoreIncrease = 0;
       let hitBomb = false;
-      let bombCollisionPosition = null;
+      let bombPosition = null;
       
-      // Get all balloon elements
-      const balloonElements = document.querySelectorAll('.balloon-element');
+      // Process hit detection
+      const balloonsToRemove = new Set();
+      const arrowsToRemove = new Set();
       
-      activeArrows.forEach(arrow => {
-        if (!arrow.active) return;
+      // Check each arrow
+      for (const arrow of currentArrows) {
+        if (!arrow.active) continue;
         
         const arrowElement = document.getElementById(`arrow-${arrow.id}`);
-        if (!arrowElement) return;
+        if (!arrowElement) continue;
         
         const arrowRect = arrowElement.getBoundingClientRect();
         
-        // Check collision with each balloon
-        balloonElements.forEach(balloonElement => {
-          if (!arrow.active) return; // Skip if arrow already hit something
+        // Create a more precise collision box for the arrow tip
+        const arrowTipSize = 20; // Larger tip size for better hit detection
+        const arrowTipOffsetX = Math.cos(arrow.rotation * (Math.PI / 180)) * 20;
+        const arrowTipOffsetY = Math.sin(arrow.rotation * (Math.PI / 180)) * 20;
+        
+        // Get the tip position based on arrow's rotation
+        const arrowTip = {
+          left: arrowRect.left + arrowRect.width / 2 + arrowTipOffsetX - arrowTipSize / 2,
+          top: arrowRect.top + arrowRect.height / 2 + arrowTipOffsetY - arrowTipSize / 2,
+          right: arrowRect.left + arrowRect.width / 2 + arrowTipOffsetX + arrowTipSize / 2,
+          bottom: arrowRect.top + arrowRect.height / 2 + arrowTipOffsetY + arrowTipSize / 2,
+          width: arrowTipSize,
+          height: arrowTipSize,
+          centerX: arrowRect.left + arrowRect.width / 2 + arrowTipOffsetX,
+          centerY: arrowRect.top + arrowRect.height / 2 + arrowTipOffsetY
+        };
+        
+        // Check against each balloon
+        for (const balloon of currentBalloons) {
+          // Skip if this balloon has already been hit
+          if (hitBalloonsRef.current.has(balloon.id) || balloonsToRemove.has(balloon.id)) continue;
           
-          const balloonId = balloonElement.dataset.id;
-          const balloon = currentBalloons.find(b => b.id.toString() === balloonId);
-          if (!balloon) return;
+          const balloonElement = document.querySelector(`[data-id="${balloon.id}"]`);
+          if (!balloonElement) continue;
           
           const balloonRect = balloonElement.getBoundingClientRect();
           
-          // Simple collision detection - check if rectangles overlap
-          if (
-            arrowRect.left < balloonRect.right &&
-            arrowRect.right > balloonRect.left &&
-            arrowRect.top < balloonRect.bottom &&
-            arrowRect.bottom > balloonRect.top
-          ) {
-            // Arrow hit something
-            arrow.active = false;
+          // Calculate the center of the balloon for distance-based collision
+          const balloonCenterX = balloonRect.left + balloonRect.width / 2;
+          const balloonCenterY = balloonRect.top + balloonRect.height / 2;
+          
+          // Calculate distance between centers for circle-based collision
+          const dx = arrowTip.centerX - balloonCenterX;
+          const dy = arrowTip.centerY - balloonCenterY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          // Set collision radius based on balloon size (75% of its width for better accuracy)
+          const collisionRadius = balloonRect.width * 0.6;
+          
+          // Check if arrow tip is within balloon radius
+          const collision = distance < collisionRadius;
+          
+          if (collision) {
+            // Mark this arrow as hit
+            arrowsToRemove.add(arrow.id);
             
-            // Check if it hit a bomb
+            // Mark this balloon as hit
+            balloonsToRemove.add(balloon.id);
+            hitBalloonsRef.current.add(balloon.id);
+            
+            // Handle bomb or regular balloon
             if (balloon.isBomb) {
               hitBomb = true;
-              // Get game area for relative positioning
-              const gameAreaRect = gameAreaRef.current.getBoundingClientRect();
-              
-              // Store collision position for blast effect
-              bombCollisionPosition = {
-                x: balloonRect.left + balloonRect.width / 2 - gameAreaRect.left,
-                y: balloonRect.top + balloonRect.height / 2 - gameAreaRect.top
+              bombPosition = {
+                x: balloonCenterX - gameAreaRect.left,
+                y: balloonCenterY - gameAreaRect.top
               };
-              
-              // Remove the bomb balloon immediately
-              const index = currentBalloons.findIndex(b => b.id === balloon.id);
-              if (index !== -1) {
-                currentBalloons.splice(index, 1);
-              }
-              
             } else {
-              // Remove balloon
-              const index = currentBalloons.findIndex(b => b.id === balloon.id);
-              if (index !== -1) {
-                currentBalloons.splice(index, 1);
-                scoreIncrease += 10;
-              }
+              // Regular balloon hit
+              scoreIncrease += 10;
+              
+              // Create a blast effect for regular balloons
+              createBlastEffect(
+                balloonCenterX - gameAreaRect.left,
+                balloonCenterY - gameAreaRect.top
+              );
             }
+            
+            // Only one hit per arrow
+            break;
           }
-        });
-      });
-      
-      // Update game state if collisions occurred
-      if (hitBomb && bombCollisionPosition) {
-        // Create blast effect at the bomb's position
-        createBlastEffect(bombCollisionPosition.x, bombCollisionPosition.y);
-        setisBombBlast(true);
-        // Short delay before ending the game to show the blast effect
-        setTimeout(() => {
-          endGame();
-        }, 500);
+        }
       }
       
-      if (scoreIncrease > 0) {
-        setBalloons(currentBalloons);
-        setScore(prev => prev + scoreIncrease);
+      // Update states if there were any hits
+      if (balloonsToRemove.size > 0 || arrowsToRemove.size > 0) {
+        // Update arrows
+        setArrows(currentArrows.filter(arrow => !arrowsToRemove.has(arrow.id)));
         
-        // Update tier status
-        const newScore = score + scoreIncrease;
-        let newTierStatus = '';
-        if (newScore >= 0 && newScore <= 49) newTierStatus = tiers[0];
-        else if (newScore >= 50 && newScore <= 99) newTierStatus = tiers[1];
-        else if (newScore >= 100 && newScore <= 149) newTierStatus = tiers[2];
-        else if (newScore >= 150 && newScore <= 299) newTierStatus = tiers[3];
-        else if (newScore >= 300) newTierStatus = tiers[4];
+        // Update balloons
+        setBalloons(currentBalloons.filter(balloon => !balloonsToRemove.has(balloon.id)));
         
-        setTierStatusText(newTierStatus);
+        // Update score
+        if (scoreIncrease > 0) {
+          setScore(prev => {
+            const newScore = prev + scoreIncrease;
+            
+            // Update tier status based on new score
+            let newTierStatus = '';
+            if (newScore >= 0 && newScore <= 49) newTierStatus = tiers[0];
+            else if (newScore >= 50 && newScore <= 99) newTierStatus = tiers[1];
+            else if (newScore >= 100 && newScore <= 149) newTierStatus = tiers[2];
+            else if (newScore >= 150 && newScore <= 299) newTierStatus = tiers[3];
+            else if (newScore >= 300) newTierStatus = tiers[4];
+            
+            setTierStatusText(newTierStatus);
+            
+            return newScore;
+          });
+        }
+        
+        // Handle bomb hit
+        if (hitBomb && bombPosition) {
+          // Create large blast effect
+          createBlastEffect(bombPosition.x, bombPosition.y);
+          setIsBombBlast(true);
+          // End game with slight delay
+          setTimeout(() => endGame(), 500);
+        }
       }
-      
-      // Remove inactive arrows
-      setArrows(activeArrows.filter(arrow => arrow.active));
     };
     
-    const collisionInterval = setInterval(checkCollisions, 100);
+    // Run collision detection more frequently for better responsiveness
+    const collisionInterval = setInterval(checkCollisions, 16); // ~60fps for smoother hit detection
     return () => clearInterval(collisionInterval);
-  }, [arrows, balloons, gameOver, score, tiers]);
+  }, [arrows, balloons, gameOver, tiers, endGame]);
 
-  // Spawn balloons continuously
+  // Improved balloon spawning system
   useEffect(() => {
     if (gameOver || !isSpawningBalloons) return;
     
-    const spawnInterval = setInterval(() => {
-      // Always spawn balloons to ensure continuous flow
+    // Initial spawn to ensure there are balloons right away
+    if (balloons.length === 0) {
+      const initialBalloons = Array(6).fill().map(() => {
+        const newBalloon = createBalloon();
+        newBalloon.isFlying = true;
+        return newBalloon;
+      });
+      setBalloons(initialBalloons);
+    }
+    
+    // Create a continuous spawning system with randomized timing
+    const spawnSingleBalloon = () => {
+      if (gameOver || !isSpawningBalloons) return;
+      
       setBalloons(prev => {
-        // Create 1-3 new balloons at once for more activity
-        const numNewBalloons = Math.floor(Math.random() * 3) + 1;
-        const newBalloons = [];
+        const newBalloon = createBalloon();
+        newBalloon.isFlying = true;
         
-        for (let i = 0; i < numNewBalloons; i++) {
-          const newBalloon = createBalloon();
-          // Automatically set balloon to flying after creation
-          newBalloon.isFlying = true;
-          newBalloons.push(newBalloon);
-        }
-        
-        // Keep a reasonable number for performance
-        const combined = [...prev, ...newBalloons];
-        if (combined.length > 30) {
-          return [...newBalloons, ...prev.slice(0, 30 - newBalloons.length)];
+        // Keep a reasonable number of balloons for performance
+        const combined = [...prev, newBalloon];
+        if (combined.length > 20) {
+          return [newBalloon, ...prev.slice(0, 19)];
         }
         return combined;
       });
-    }, 500); // Faster spawn rate
-
-    return () => clearInterval(spawnInterval);
-  }, [balloons, createBalloon, gameOver, isSpawningBalloons]);
+      
+      // Schedule next balloon with random timing
+      const randomDelay = Math.floor(Math.random() * 500) + 100; // Random delay between 100-400ms
+      timeoutRefs.current.single = setTimeout(spawnSingleBalloon, randomDelay);
+    };
+    
+    // Create sporadic bursts of multiple balloons
+    const createBurst = () => {
+      if (gameOver || !isSpawningBalloons) return;
+      
+      // Create a burst of 4-8 balloons all at once
+      setBalloons(prev => {
+        const burstCount = Math.floor(Math.random() * 3) + 2; // 4-8 balloons
+        const burstBalloons = Array(burstCount).fill().map(() => {
+          const newBalloon = createBalloon();
+          newBalloon.isFlying = true;
+          // Vary the starting positions more for burst balloons
+          newBalloon.startX = `${Math.random() * 100}%`;
+          return newBalloon;
+        });
+        
+        const combined = [...prev, ...burstBalloons];
+        if (combined.length > 50) {
+          return [...burstBalloons, ...prev.slice(0, 50 - burstBalloons.length)];
+        }
+        return combined;
+      });
+      
+      // Schedule next burst with random timing
+      const randomBurstDelay = Math.floor(Math.random() * 2000) + 3000; // Random delay between 1-2.5 seconds
+      timeoutRefs.current.burst = setTimeout(createBurst, randomBurstDelay);
+    };
+    
+    // Start the continuous random spawning processes
+    const initialDelay = Math.floor(Math.random() * 200) + 100;
+    timeoutRefs.current.single = setTimeout(spawnSingleBalloon, initialDelay);
+    timeoutRefs.current.burst = setTimeout(createBurst, 800);
+    
+    // Cleanup function
+    return () => {
+      if (timeoutRefs.current.single) clearTimeout(timeoutRefs.current.single);
+      if (timeoutRefs.current.burst) clearTimeout(timeoutRefs.current.burst);
+    };
+  }, [balloons.length, createBalloon, gameOver, isSpawningBalloons]);
 
   // Auto-remove flying balloons that have gone off screen
   useEffect(() => {
     const timer = setInterval(() => {
-      const updatedBalloons = balloons.filter(balloon => {
-        const element = document.querySelector(`[data-id="${balloon.id}"]`);
-        if (!element) return false;
-        const rect = element.getBoundingClientRect();
-        return rect.bottom > 0; // Keep if still on screen
+      setBalloons(prev => {
+        return prev.filter(balloon => {
+          const element = document.querySelector(`[data-id="${balloon.id}"]`);
+          if (!element) return false;
+          const rect = element.getBoundingClientRect();
+          return rect.bottom > 0; // Keep if still on screen
+        });
       });
-      
-      if (updatedBalloons.length !== balloons.length) {
-        setBalloons(updatedBalloons);
-      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [balloons]);
+  }, []);
 
   // Cleanup old arrows that go outside the screen boundaries
   useEffect(() => {
@@ -492,6 +620,13 @@ const BalloonBurstGame = () => {
     
     return () => clearInterval(cleanupInterval);
   }, []);
+
+  // Reset hit balloons tracker when game resets
+  useEffect(() => {
+    if (!gameOver) {
+      hitBalloonsRef.current = new Set();
+    }
+  }, [gameOver]);
 
   // Get appropriate arrow size based on screen size
   const getArrowSize = () => {
@@ -531,12 +666,12 @@ const BalloonBurstGame = () => {
       <div 
         ref={gameAreaRef}
         style={{ backgroundImage: `url(${backgroundImg})` }} 
-        className="bg-cover bg-center fixed inset-0 overflow-hidden"
+        className="bg-cover bg-center fixed inset-0 overflow-hidden cursor-crosshair"
       >
         {/* Score, Tier and Timer Display */}
-        <div className={`absolute space-y-1 top-2 md:top-5 right-2 md:right-5 text-black z-10 ${getFontSize('header')}`}>
+        <div className={`absolute space-y-1 top-2 md:top-5 right-2 md:right-5 text-white z-10 ${getFontSize('header')}`}>
           <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
-            Welcome, {fullName}
+            Welcome, {fullName || 'Player'}
           </div>
           <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
             Score: {score}
@@ -547,7 +682,7 @@ const BalloonBurstGame = () => {
           {/* Timer Display */}
           <div className={`font-bold`} style={{ 
             textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
-            color: timeLeft <= 30 ? '#ff0000' : '#000000' // Red color for last 30 seconds
+            color: timeLeft <= 30 ? 'red' : 'white' // Red color for last 30 seconds
           }}>
             Time: {formatTime(timeLeft)}
           </div>
@@ -560,15 +695,14 @@ const BalloonBurstGame = () => {
               key={balloon.id}
               src={balloon.src}
               alt={balloon.isBomb ? "Bomb" : "Balloon"}
-              className={`absolute bottom-0 balloon-element
-                ${balloon.isFlying ? 'animate-fly' : ''}`}
+              className={`absolute bottom-0 balloon-element ${balloon.isFlying ? 'animate-fly' : ''}`}
               data-id={balloon.id}
               style={{
                 width: `${balloon.size}px`,
                 height: `${balloon.size}px`,
                 left: balloon.startX,
-                '--fly-start-x': balloon.startX,
-                '--fly-end-x': balloon.endX,
+                '--start-x': balloon.startX,
+                '--end-x': balloon.endX,
                 zIndex: 10
               }}
             />
@@ -640,10 +774,10 @@ const BalloonBurstGame = () => {
         {gameOver && <GameIsOver score={score} bomb={isBombBlast} />}
 
         {/* Instructions */}
-        <div className={`absolute bottom-4 md:bottom-10 left-2 md:left-10 text-center text-[rgb(45,15,18)] font-bold z-10 ${getFontSize('instruction')}`} 
+        <div className={`absolute bottom-4 md:bottom-10 left-2 md:left-10 text-center text-white font-bold z-10 ${getFontSize('instruction')}`} 
              style={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.5)' }}>
-          <p>Aim and click to shoot arrows 🏹</p>
-          <p className="text-red-600">Hit balloons but avoid bombs! 💣</p>
+          <p className='mb-5'>Aim and click to shoot arrows <img src={BowArrowImg} className='w-14 inline-block -rotate-90 z-50'/></p>
+          <p className="text-black">Hit Germs but avoid Heart!  <img src={BombImg} className='w-14 ml-2 inline-block  z-50'/></p>
           {!gameOver && <p className="text-red-600">Time Remaining: {formatTime(timeLeft)}</p>}
         </div>
         

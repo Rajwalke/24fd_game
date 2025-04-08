@@ -6,11 +6,12 @@ import { IoGameController } from "react-icons/io5";
 import { MdLeaderboard } from "react-icons/md";
 
 // Import balloon images
-import balloon1 from './Graphics/Symbol 100001.png';
-import balloon2 from './Graphics/Symbol 100002.png';
-import balloon3 from './Graphics/Symbol 100003.png';
-import balloon4 from './Graphics/Symbol 100004.png';
-import balloon5 from './Graphics/Symbol 100005.png';
+import balloon1 from './Graphics/heart.png';
+import balloon2 from './Graphics/bandag.png';
+import balloon3 from './Graphics/medicalbox.png';
+import balloon4 from './Graphics/bloodBank.png';
+import balloon5 from './Graphics/lungs.png';
+import doctorImg from "./Graphics/doctor image.png"
 
 const LoginPage = () => {
     const [fullName, setFullName] = useState("");
@@ -92,6 +93,10 @@ const LoginPage = () => {
                 <div className="absolute -top-16 -right-16 opacity-70">
                     <img src={balloonImages[0]} alt="Balloon" className="w-32 h-auto" />
                 </div>
+                <div className="absolute -top-40 right-[32%] opacity-100">
+                    <img src={doctorImg} alt="Balloon" className="w-48 h-auto" />
+                </div>
+
                 <div className="absolute -bottom-16 -left-16 opacity-70">
                     <img src={balloonImages[2]} alt="Balloon" className="w-32 h-auto" />
                 </div>
@@ -101,10 +106,10 @@ const LoginPage = () => {
                     {/* Header area */}
                     <div className="bg-gradient-to-r from-blue-900 to-purple-900 px-8 py-6 border-b border-gray-700">
                         <h1 className="font-bold text-3xl md:text-4xl text-white tracking-tight">
-                            BURST THE BALLOON
+                            Doctor's Aim
                         </h1>
                         <p className="text-gray-300 mt-2 text-sm">
-                            Challenge your reflexes in this captivating balloon-popping adventure
+                            Challenge your reflexes in this captivating Medical-objects-popping adventure
                         </p>
                     </div>
                     
@@ -143,6 +148,7 @@ const LoginPage = () => {
                                     >
                                       LeadBoard <MdLeaderboard className="inline-block" /></Link>      
                                     
+                                    {/* <Link to="/Rule"; */}
                                 </div>
                             </div>
                         </form>

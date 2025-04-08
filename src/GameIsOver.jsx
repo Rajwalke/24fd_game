@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-
+import germ from './Graphics/Bomb-Img.png'
 const GameIsOver = ({ score,bomb }) => {
   const [animationClass, setAnimationClass] = useState('scale-0');
 
@@ -20,7 +20,7 @@ const GameIsOver = ({ score,bomb }) => {
         <div className="relative">
           {/* Bomb icon */}
           <div className="absolute -top-24 left-1/2 transform -translate-x-1/2">
-            <div className="text-6xl animate-bounce">💣</div>
+            <div className="text-6xl animate-bounce"><img src={germ}/></div>
           </div>
           
           {/* Title */}
