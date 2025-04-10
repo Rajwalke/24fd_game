@@ -39,7 +39,7 @@ const GameIsOver = ({ score,bomb }) => {
           </div>
           
           {/* Message */}
-          <p className='text-xl font-bold my-2 '>{bomb == true ? "You clicked on a bomb! The game will restart shortly..." : "Time up"}</p>
+          <p className='text-xl font-bold my-2 '>Time's up</p>
           
           
           {/* Progress bar */}

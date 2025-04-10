@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 // Import all balloon images
-import balloon1 from './Graphics/germ11.png';
-import balloon2 from './Graphics/germ14.png';
-import balloon3 from './Graphics/germ15.png';
-import balloon4 from './Graphics/germ13.png';
+import balloon1 from './Graphics/alchol.png';
+import balloon2 from './Graphics/cigarate.png';
+import balloon3 from './Graphics/fastfood.png';
+import balloon4 from './Graphics/germ11.png';
 import balloon5 from './Graphics/germ12.png';
 
 import BowArrowImg from "./Graphics/BowArrowImg.png";
 import ArrowImg from './Graphics/Arrow.png';
 import backgroundImg from "./Graphics/Symbol 3 copy.jpg";
-import BombImg from "./Graphics/heart.png";
+import BombImg from "./Graphics//medicine.png";
 import GameIsOver from './GameIsOver';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { addUserScore } from './utils/userDataSlice';
 import { addAlluser } from './utils/userSlice';
+import PopupContainer from './PopupContainer';
+import Userboard from './Userboard';
+import Trajectory from './Trajectory';
+import Instructions from './Instruction';
+import BowandArrow from './Bow&Arrow';
 
 const BalloonBurstGame = () => {
   // Game state
@@ -32,6 +37,7 @@ const BalloonBurstGame = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
   // Bow and Arrow state
+  const[popup,setPopup]=useState(false);
   const [bowRotation, setBowRotation] = useState(-45); // Default upward direction
   const [arrows, setArrows] = useState([]);
   const [canShoot, setCanShoot] = useState(true);
@@ -63,11 +69,11 @@ const BalloonBurstGame = () => {
   ];
 
   // Format time function (convert seconds to MM:SS format)
-  const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
-  };
+  // const formatTime = (seconds) => {
+  //   const minutes = Math.floor(seconds / 60);
+  //   const remainingSeconds = seconds % 60;
+  //   return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  // };
 
   // Custom CSS for fly animation with increased speed
   const flyAnimation = `
@@ -501,7 +507,12 @@ const BalloonBurstGame = () => {
           createBlastEffect(bombPosition.x, bombPosition.y);
           setIsBombBlast(true);
           // End game with slight delay
-          setTimeout(() => endGame(), 500);
+          // setTimeout(() => endGame(), 500);
+          setTimeLeft(timeLeft+5);
+          setPopup(true);
+          setTimeout(() => {
+            setPopup(false);
+          }, 2000);
         }
       }
     };
@@ -636,20 +647,20 @@ const BalloonBurstGame = () => {
   };
 
   // Get appropriate trajectory dot size based on screen size
-  const getTrajectoryDotSize = (index) => {
-    const baseSize = windowSize.width < 640 ? 4 : windowSize.width < 1024 ? 6 : 8;
-    return index % 2 === 0 ? `${baseSize}px` : `${baseSize - 2}px`;
-  };
+  // const getTrajectoryDotSize = (index) => {
+  //   const baseSize = windowSize.width < 640 ? 4 : windowSize.width < 1024 ? 6 : 8;
+  //   return index % 2 === 0 ? `${baseSize}px` : `${baseSize - 2}px`;
+  // };
 
   // Get appropriate font sizes for UI elements based on screen size
-  const getFontSize = (type) => {
-    if (type === 'header') {
-      return windowSize.width < 640 ? 'text-lg' : windowSize.width < 1024 ? 'text-xl' : 'text-2xl';
-    } else if (type === 'instruction') {
-      return windowSize.width < 640 ? 'text-base' : windowSize.width < 1024 ? 'text-lg' : 'text-2xl';
-    }
-    return 'text-base';
-  };
+  // const getFontSize = (type) => {
+  //   if (type === 'header') {
+  //     return windowSize.width < 640 ? 'text-lg' : windowSize.width < 1024 ? 'text-xl' : 'text-2xl';
+  //   } else if (type === 'instruction') {
+  //     return windowSize.width < 640 ? 'text-base' : windowSize.width < 1024 ? 'text-lg' : 'text-2xl';
+  //   }
+  //   return 'text-base';
+  // };
 
   // Get blast effect size based on screen size
   const getBlastSize = () => {
@@ -662,31 +673,23 @@ const BalloonBurstGame = () => {
     <>
       {/* Add custom animation styles */}
       <style>{flyAnimation}</style>
-
+      
       <div 
         ref={gameAreaRef}
         style={{ backgroundImage: `url(${backgroundImg})` }} 
         className="bg-cover bg-center fixed inset-0 overflow-hidden cursor-crosshair"
       >
-        {/* Score, Tier and Timer Display */}
-        <div className={`absolute space-y-1 top-2 md:top-5 right-2 md:right-5 text-white z-10 ${getFontSize('header')}`}>
-          <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
-            Welcome, {fullName || 'Player'}
-          </div>
-          <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
-            Score: {score}
-          </div>
-          <div className={`font-bold`} style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)' }}>
-            {tierStatusText}
-          </div>
-          {/* Timer Display */}
-          <div className={`font-bold`} style={{ 
-            textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
-            color: timeLeft <= 30 ? 'red' : 'white' // Red color for last 30 seconds
-          }}>
-            Time: {formatTime(timeLeft)}
-          </div>
-        </div>
+      {popup && 
+          <PopupContainer/>
+      }
+      {/* Score, Tier and Timer Display */}
+      {/* { here is userDahsboard} */}
+      <Userboard fullName={fullName} 
+      tierStatusText={tierStatusText} 
+      timeLeft={timeLeft}
+      score={score}
+
+      />
 
         {/* Balloon Container */}
         <div className="relative w-full h-full">
@@ -730,17 +733,7 @@ const BalloonBurstGame = () => {
           
           {/* Trajectory Line */}
           {canShoot && trajectoryPoints.map((point, index) => (
-            <div
-              key={`trajectory-${index}`}
-              className="absolute rounded-full bg-black z-50"
-              style={{
-                width: getTrajectoryDotSize(index),
-                height: getTrajectoryDotSize(index),
-                left: `${point.x}px`,
-                top: `${point.y}px`,
-                zIndex: 15
-              }}
-            />
+            <Trajectory index={index} point={point} windowSize={windowSize}/>
           ))}
           
           {/* Flying Arrows */}
@@ -774,37 +767,23 @@ const BalloonBurstGame = () => {
         {gameOver && <GameIsOver score={score} bomb={isBombBlast} />}
 
         {/* Instructions */}
-        <div className={`absolute bottom-4 md:bottom-10 left-2 md:left-10 text-center text-white font-bold z-10 ${getFontSize('instruction')}`} 
-             style={{ textShadow: '1px 1px 2px rgba(0, 0, 0, 0.5)' }}>
-          <p className='mb-5'>Aim and click to shoot arrows <img src={BowArrowImg} className='w-14 inline-block -rotate-90 z-50'/></p>
-          <p className="text-black">Hit Germs but avoid Heart!  <img src={BombImg} className='w-14 ml-2 inline-block  z-50'/></p>
-          {!gameOver && <p className="text-red-600">Time Remaining: {formatTime(timeLeft)}</p>}
-        </div>
+        <Instructions BombImg={BombImg} windowSize={windowSize} />
+
         
         {/* Centered Bow and Arrow */}
-        <div 
-          className="absolute transform -translate-x-1/2 flex justify-center items-center"
-          style={{ 
-            bottom: '5%',
-            left: '50%',
-            transformOrigin: 'bottom center',
-            cursor: canShoot ? 'pointer' : 'default',
-            zIndex: 30
-          }}
-          onClick={shootArrow}
-          onTouchStart={canShoot ? shootArrow : undefined}
-        >
-          <img 
-            ref={bowRef}
-            className={getBowSize()}
-            src={BowArrowImg}
-            alt="Bow"
-            style={{ 
-              transform: `rotate(${bowRotation}deg)`,
-              transformOrigin: 'center center'
-            }}
-          />
-        </div>
+      <BowandArrow 
+      canShoot={canShoot} 
+      bowRef={bowRef} 
+      BowArrowImg={BowArrowImg} 
+      bowRotation={bowRotation}
+      windowSize={windowSize}
+      gameOver={gameOver}
+      trajectoryPoints={trajectoryPoints}
+      gameAreaRef={gameAreaRef}
+      setArrows={setArrows}
+      setCanShoot={setCanShoot}
+      shootArrow={shootArrow}
+      />
       </div>
     </>
   );
