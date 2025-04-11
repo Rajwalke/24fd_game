@@ -4,6 +4,7 @@ const UserDataSlice=createSlice({
     name:"userData",
     initialState:{
         userName:null,
+        email:null,
         score:null,
         id:null
     },
@@ -16,8 +17,11 @@ const UserDataSlice=createSlice({
         },
         addUserId:(state,action)=>{
             state.id=action.payload;
+        },
+        addUserEmail:(state,action)=>{
+            state.email=action.payload;
         }
     }
 });
 export default UserDataSlice.reducer;
-export const {addUserId,addUserName,addUserScore}=UserDataSlice.actions;
+export const {addUserId,addUserName,addUserScore,addUserEmail}=UserDataSlice.actions;

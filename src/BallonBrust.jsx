@@ -20,6 +20,7 @@ import Userboard from './Userboard';
 import Trajectory from './Trajectory';
 import Instructions from './Instruction';
 import BowandArrow from './Bow&Arrow';
+import BlastEffect from './BlastEffect';
 
 const BalloonBurstGame = () => {
   // Game state
@@ -31,6 +32,7 @@ const BalloonBurstGame = () => {
   const [timeLeft, setTimeLeft] = useState(60); // 1 minute in seconds
   const dispatch = useDispatch();
   const fullName = useSelector((store) => store?.userData?.userName);
+  const email=useSelector((store)=>store?.userData?.email);
   const id = useSelector((store) => store?.userData?.id);
   
   // Mouse position state
@@ -121,23 +123,23 @@ const BalloonBurstGame = () => {
   // Determine balloon size based on screen size
   const getBalloonSize = () => {
     if (windowSize.width < 640) return 75; // Mobile
-    if (windowSize.width < 1024) return 95; // Tablet
-    return 120; // Desktop and larger
+    if (windowSize.width < 1024) return 90; // Tablet
+    return 95; // Desktop and larger
   };
 
   // Determine bow size based on screen size
-  const getBowSize = () => {
-    if (windowSize.width < 640) return 'w-24'; // Mobile
-    if (windowSize.width < 1024) return 'w-32'; // Tablet
-    return 'w-60'; // Desktop and larger
-  };
+  // const getBowSize = () => {
+  //   if (windowSize.width < 640) return 'w-24'; // Mobile
+  //   if (windowSize.width < 1024) return 'w-32'; // Tablet
+  //   return 'w-24'; // Desktop and larger
+  // };
 
   // Create a new balloon
   const createBalloon = useCallback(() => {
     // Determine if this balloon should be a bomb (10% chance)
     const isBomb = Math.random() < 0.1;
     const randomImage = isBomb ? BombImg : balloonImages[Math.floor(Math.random() * balloonImages.length)];
-    
+
     const startX = Math.random() * 90;
     const endX = Math.random() * 180 - 40;
     
@@ -174,11 +176,12 @@ const BalloonBurstGame = () => {
       dispatch(addAlluser({
         "id": id,
         "fullName": fullName,
-        "Score": score
+        "Score": score,
+        "email":email
       }));
       navigate("/");
     }, 4000);
-  }, [dispatch, fullName, id, navigate, score]);
+  }, [dispatch, fullName, email, id, navigate, score]);
 
   // Create blast effect function
   const createBlastEffect = (x, y) => {
@@ -715,19 +718,9 @@ const BalloonBurstGame = () => {
           {blastEffects.map(blast => {
             const blastSize = getBlastSize();
             return (
-              <div 
-                key={`blast-${blast.id}`}
-                className="absolute rounded-full animate-blast"
-                style={{
-                  width: blastSize.size,
-                  height: blastSize.size,
-                  left: `${blast.x - parseInt(blastSize.size) / 2}px`,
-                  top: `${blast.y - parseInt(blastSize.size) / 2}px`,
-                  background: 'radial-gradient(circle, rgba(255,165,0,0.8) 0%, rgba(255,69,0,0.8) 40%, rgba(255,0,0,0.8) 60%, rgba(139,0,0,0.7) 80%, rgba(0,0,0,0) 100%)',
-                  boxShadow: '0 0 20px 10px rgba(255, 165, 0, 0.8)',
-                  zIndex: 30
-                }}
-              />
+             <BlastEffect blastSize={blastSize} 
+              blast={blast}
+             />
             );
           })}
           
@@ -741,24 +734,24 @@ const BalloonBurstGame = () => {
             const arrowSize = getArrowSize();
             return (
               <img 
-                id={`arrow-${arrow.id}`}
-                key={arrow.id}
-                src={ArrowImg}
-                alt="Arrow"
-                className="absolute animate-arrow"
-                style={{
-                  width: arrowSize.width,
-                  height: arrowSize.height,
-                  left: `${arrow.x}px`,
-                  top: `${arrow.y}px`,
-                  '--arrow-rotation': `${arrow.rotation}deg`,
-                  '--arrow-dx': `${arrow.dx}px`,
-                  '--arrow-dy': `${arrow.dy}px`,
-                  transform: `rotate(${arrow.rotation}deg)`,
-                  transformOrigin: 'center center',
-                  zIndex: 20
-                }}
-              />
+              id={`arrow-${arrow.id}`}
+              key={arrow.id}
+              src={ArrowImg}
+              alt="Arrow"
+              className="absolute animate-arrow"
+              style={{
+                width: arrowSize.width,
+                height: arrowSize.height,
+                left: `${arrow.x}px`,
+                top: `${arrow.y}px`,
+                '--arrow-rotation': `${arrow.rotation}deg`,
+                '--arrow-dx': `${arrow.dx}px`,
+                '--arrow-dy': `${arrow.dy}px`,
+                transform: `rotate(${arrow.rotation}deg)`,
+                transformOrigin: 'center center',
+                zIndex: 20
+              }}
+            />
             );
           })}
         </div>

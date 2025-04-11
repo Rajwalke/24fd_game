@@ -3,7 +3,7 @@ const BowandArrow=({canShoot,shootArrow,bowRef,BowArrowImg,bowRotation,windowSiz
   const getBowSize = () => {
     if (windowSize.width < 640) return 'w-24'; // Mobile
     if (windowSize.width < 1024) return 'w-32'; // Tablet
-    return 'w-60'; // Desktop and larger
+    return 'w-44'; // Desktop and larger
   };
 
 
