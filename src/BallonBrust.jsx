@@ -174,7 +174,6 @@ const BalloonBurstGame = () => {
     
     setTimeout(() => {
       dispatch(addAlluser({
-        "id": id,
         "fullName": fullName,
         "Score": score,
         "email":email

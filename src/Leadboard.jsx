@@ -11,18 +11,34 @@ import { useNavigate } from "react-router-dom";
 
 const Leaderboard = () => {
   const searchText = useRef();
-  let allUserInfo = useSelector((store) => store.userInfoSlice);
   const [popup, setPopUp] = useState(false);
   const [sortedData, setSortedData] = useState([]);
   const [fullySortedData, setFullySortedData] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [AllUserData,setAllUserData]=useState([]);
 
+  const getAllUser=async()=>{
+    try{
+      const ApiData=await fetch("http://172.16.16.237:81/api/Balloon/GetAllUsers");
+    const allData=await ApiData.json();
+    console.log("Leader board data",allData);
+    setAllUserData(allData);
+    }catch(err){
+      console.log(err.message);
+    }
+  }
+
+
+  useEffect(()=>{
+    getAllUser();
+  },[]);
+  console.log("AllUserData",AllUserData);
   // Sort data only when allUserInfo changes
   useEffect(() => {
-    const sorted = [...allUserInfo].sort((a, b) => b.Score - a.Score);
+    const sorted = [...AllUserData].sort((a, b) => b.score - a.score);
     setSortedData(sorted);
     setFullySortedData(sorted);
-  }, [allUserInfo]);
+  }, [AllUserData]);
 
   const searchTheName = () => {
     if (!searchText.current.value.trim()) {
@@ -32,7 +48,7 @@ const Leaderboard = () => {
     }
 
     let searchOP = fullySortedData.filter((userInfo) =>
-      userInfo?.fullName.toLowerCase().includes(searchText.current.value.toLowerCase())
+      userInfo?.name.toLowerCase().includes(searchText.current.value.toLowerCase())
     );
     
     if (searchOP.length === 0) {
@@ -192,11 +208,11 @@ const Leaderboard = () => {
                           )}
                         </div>
                         <p className="font-medium text-lg text-white w-40 truncate">
-                          {user.fullName}
+                          {user.name}
                         </p>
                         <div className="flex items-center gap-1 font-bold text-lg">
                           <span className={originalRank < 3 ? "text-yellow-400" : "text-white"}>
-                            {user.Score}
+                            {user.score}
                           </span>
                           <motion.img
                             animate={{ rotateY: [0, 360] }}

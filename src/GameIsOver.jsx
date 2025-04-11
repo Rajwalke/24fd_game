@@ -1,14 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import germ from './Graphics/Bomb-Img.png'
+import { useSelector } from 'react-redux';
+import axios from 'axios';
 const GameIsOver = ({ score,bomb }) => {
   const [animationClass, setAnimationClass] = useState('scale-0');
+  const UserInfo=useSelector((store)=>store.userData);
+  const [UserData,setUserData]=useState({
+    "Name":UserInfo?.userName,
+    "Email":UserInfo?.email,
+    "score":UserInfo?.score
+  })
+
+  console.log("Im outside",UserData);
+
+  const handleSubmit=async()=>{
+    try{
+      const response=await axios.post(
+        "http://172.16.16.237:81/api/Balloon/AddUser",
+        UserData
+      );
+      console.log("Response Data",response?.data);
+
+    }catch(err){
+      console.log("Data is not post",err)
+    }
+
+  }
+
 
   useEffect(() => {
     // Trigger entrance animation
+    handleSubmit();
     setTimeout(() => {
       setAnimationClass('scale-100');
     }, 100);
   }, []);
+
   return (
     <div className="fixed z-50 inset-0 flex items-center justify-center bg-black bg-opacity-80">
       <div 
