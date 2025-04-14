@@ -92,7 +92,7 @@ const Leaderboard = () => {
         </motion.div>
       )}
       <div className="min-h-screen w-full flex justify-center items-center bg-gradient-to-br from-black via-gray-900 to-purple-900 text-white py-12">
-        <div className="border-2 border-purple-500 rounded-2xl w-10/12 max-w-4xl flex flex-col justify-center items-center gap-6 px-5 py-6 bg-black bg-opacity-70 shadow-lg shadow-purple-500/30">
+        <div className="border-2 scale-[0.9] border-purple-500 rounded-2xl w-10/12 max-w-4xl flex flex-col justify-center items-center gap-6 px-5 py-6 bg-black bg-opacity-70 shadow-lg shadow-purple-500/30">
           <div className="flex justify-between gap-4 w-full max-w-md">
             {/* Search */}
             <div className="relative w-3/4">
