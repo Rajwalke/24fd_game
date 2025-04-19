@@ -306,8 +306,8 @@ const BalloonBurstGame = () => {
     
     // Get bow position
     const bowRect = bowRef.current.getBoundingClientRect();
-    const bowCenterX = bowRect.left + bowRect.width / 2;
-    const bowCenterY = bowRect.top + bowRect.height / 2;
+    const bowCenterX = bowRect.left + bowRect.width / 4;
+    const bowCenterY = bowRect.top + bowRect.height / 4;
     
     // Get game area for relative positioning
     const gameAreaRect = gameAreaRef.current.getBoundingClientRect();
